@@ -1,0 +1,172 @@
+---
+title: "Assignment 8"
+author: "Chamundeswari Koppisetti"
+date: "10/30/2020"
+output: pdf_document
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### 1.Solution:
+
+To prove, we recall Ito formula which is represented as follows:
+
+$$
+dV = \frac{\partial V}{\partial t} dt + \frac{\partial V}{\partial r} dr + \frac{1}{2} \frac{\partial^2 V}{\partial r^2} dr^2
+$$
+Let $V = e^{\alpha t} (r(t) - b)$, then we have:
+
+$$
+\begin{aligned}
+\frac{\partial V}{\partial t} &= \alpha e^{\alpha t} (r(t) - b)\\ \\
+\frac{\partial V}{\partial r} &= e^{\alpha t}\\ \\ 
+\frac{\partial^2 V}{\partial r^2} &= 0\\ \\
+\end{aligned}
+$$
+
+By substituting obtained result into the Ito Formula, we get:
+
+$$
+\begin{aligned}
+dV &= \alpha e^{\alpha t} (r(t) - b) dt + e^{\alpha t} dr\\ \\
+dV &= \sigma dW(t)
+\end{aligned}
+$$
+
+Integrate both sides from $t$ to $t + \Delta$,
+
+$$
+\begin{aligned}
+e^{\alpha (t + \Delta)} [r(t+ \Delta) - b]
+&= e^{\alpha t} (r(t) - b) + \sigma [ W(\Delta + t) - W(t)]\\ \\ 
+r(t+ \Delta) - b
+&= e^{- \alpha t} (r(t) - b) + e^{- \alpha (t+ \Delta)} \sigma [ W(\Delta + t) - W(t)]\\ \\
+r(t+ \Delta) &= e^{- \alpha \Delta} r(t) + b(1 - e^{- \alpha \Delta})
+                + \frac{\sigma}{\sqrt{2 \alpha}} \sqrt{1 - e^{-2 \alpha \Delta}} Z
+\end{aligned}
+$$
+
+Where $Z \sim N(0, 1)$.
+
+
+#### 2.Solution:
+
+Firstly, we set the initial parameters
+
+```{r}
+alpha <- c(0.1, 1, 5)
+sigma <- c(0.1, 0.2, 0.5)
+b <- c(-5, 5) 
+```
+
+Function random_walk is written. In this part, in order to save some time, we can implement random walks at same $\sigma$ and $b$ but with different $\alpha$ at the same time. For example, set $\alpha$ = c(0.1, 1, 5), $\sigma$ = 0.1, $b$ = -5, the function will return a matrix that has three columns. The first column is the random walk with $\alpha$ = 0.1, $\sigma$ = 0.1, $b$ = -5, the second column is the result of $\alpha$ = 1, $\sigma$ = 0.1, $b$ = -5 and the last column is $\alpha$ = 5, $\sigma$ = 0.1, $b$ = -5
+
+```{r}
+random_walk <- function(initial = 1, T = 500, step = 1/500,
+                        alpha, sigma, b) {
+  n <- T / step
+  r <- matrix(rep(NA, n), n, length(alpha))
+  r[1, ] <- r.current <- rep(initial, length(alpha))
+  Z <- rnorm(n, mean = 0, sd = 1)
+  for (i in 1:n) {
+    r[i, ] <- r.current <- exp(-alpha * step) * r.current +
+      b * (1 - exp(-alpha * step)) +
+      sigma / sqrt(2 * alpha) * sqrt(1 - exp(-2 * alpha * step)) * Z[i]
+  }
+  return(r)
+}
+```
+
+Next, we need all the possible combination of $\sigma$ and $b$
+
+```{r}
+comb <- expand.grid(sigma, b)
+print(comb)
+```
+
+The last part is just use different inputs and plot the results. Writing a loop to plot:
+
+```{r}
+par(mfrow = c(2, 2))
+for (i in 1:nrow(comb)) {
+  result <- random_walk(alpha = alpha,
+                        sigma = comb[i, 1], b = comb[i, 2])
+  sapply(c(1:length(alpha)), function(j) plot(result[, j],
+                             type = 'l', xlab = 'Steps', ylab = 'r',
+                             main = paste0('Alpha = ', alpha[j],' Sigma = ', comb[i, 1],
+                                           ' b = ', comb[i, 2])))
+}
+
+```
+
+As we can see, $\alpha$ is the speed or rate for the OU process to reach “stable” (or to reach the parameter $b$), $\sigma$ determines the volatility or the size of noise of the OU process. And $b$ is the asymptotic mean.
+
+#### 3.Solution:
+
+In this part, set $\Delta$ = 1, $r(0)$ = 1, $t$ = 1, so we can write a function plot_true2 to plot the true density
+$$
+r(1) = e^{-\alpha}r(0)+ b(1-e^{-\alpha})+\frac{\sigma}{\sqrt{2 \alpha}}\sqrt{1 - e^{-2 \alpha}} Z
+$$
+Next, write a function to generate a sample of size 1000 for $r(1)$. The following code can generate many samples according to different $\alpha$ with the same $\sigma$, $b$ and $\delta$. But in order to compare the kernel density and the true density, we will use these function to generate one sample of size 1000 each time.
+
+```{r}
+plot_true2 <- function(alpha, sigma, b, delta = 1, initial = 1, ad = FALSE, para = 1) {
+  mean1 <- exp(-sigma * delta) * initial + b * (1 - exp(-alpha * delta))
+  sd1 <- sigma / sqrt(2 * alpha) * sqrt(1 - exp(-2 * alpha * delta))
+  temp <- list(NULL, c(mean1 - 5 * sd1, mean1 + 5 * sd1))
+  curve(dnorm(x, mean = mean1, sd = sd1), col = 'red',
+        xlim = temp[[para]],
+        main = 'True density', ylab = 'Density', xlab = 'r(1)', add = ad)
+}
+```
+
+```{r}
+es_sample <- function(alpha, sigma, b, delta,
+                      initial = 1, sample_size = 1000) {
+  n <- length(alpha)
+  r_current <- matrix(rep(initial, sample_size), sample_size, n)
+  alpha1 <- matrix(rep(alpha, sample_size), sample_size, n, byrow = TRUE)
+  for (i in 1:(1 / delta)) {
+    mean1 <- r_current + alpha1 * (b - r_current) * delta
+    sd1 <- sigma * delta
+    temp <- rnorm(sample_size * n, mean = t(mean1), sd = sd1)
+    r_current <- matrix(temp, sample_size, n, byrow = TRUE)
+}
+  return(r_current)
+}
+```
+
+Function plot_compare to plot the true density and sample density with every combination of initial parameters:
+
+```{r}
+plot_compare <- function(alpha, sigma, b, delta1, initial = 1) {
+  comb <- expand.grid(delta, alpha, sigma, b)
+  for (i in 1:nrow(comb)) {
+    es_result <- es_sample(delta = comb[i, 1],alpha = comb[i, 2],
+                           sigma = comb[i, 3], b = comb[i, 4])
+    hist(es_result, prob = TRUE, main = paste('Delta = ', comb[i, 1]),
+         ylab = 'Density', xlab = 'r(1)')
+    plot_true2(alpha = comb[i, 2], sigma = comb[i, 3], b = comb[i, 4], ad = TRUE)
+    if ((i %% 4) == 0) {
+      plot_true2(alpha = comb[i, 2], sigma = comb[i, 3], b = comb[i, 4], para = 2)
+      print(paste0('Alpha = ', comb[i, 2], ' Sigma = ', comb[i, 3],
+                   ' b = ', comb[i, 4]))
+    }
+  }
+}
+```
+
+Finally, set initial parameters and use the functions to plot figures. The red lines are the true density:
+
+```{r}
+alpha <- c(0.1, 1, 5)
+sigma <- c(0.1, 0.2, 0.5)
+b <- c(-5, 5)
+delta <- c(1, 0.5, 0.1, 0.01)
+layout(matrix(c(1, 2, 3, 4, 5, 5), 2, 3, byrow = TRUE))
+plot_compare(alpha, sigma, b, delta)
+```
+
+
