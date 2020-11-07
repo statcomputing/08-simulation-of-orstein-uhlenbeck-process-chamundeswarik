@@ -9,6 +9,8 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### 5.3.3 Orstein–Uhlenbeck Process 
+
 #### 1.Solution:
 
 To prove, we recall Ito formula which is represented as follows:
@@ -170,3 +172,102 @@ plot_compare(alpha, sigma, b, delta)
 ```
 
 
+### 5.3.4 Poisson Process 
+
+#### 1. Solution:
+
+$$
+\begin{aligned}
+\int_{0}^{t}\sqrt s + e^{-s}\sin(2\pi s)~ds &= - & -8t^{3/2}\pi^2 + 6\pi e^{-t}\cos(2\pi t) - 2t^{3/2}+3e^{-t}\sin(2\pi t)-6\pi\over 3(4\pi^2 + 1) \\
+\int_{0}^{5} \sqrt s + e^{-s}\sin(2\pi s)~ds &= - & -2(-20 \sqrt 5\pi^2 + 3\pi e^{-5}-5\sqrt 5 -3\pi)\over 3(4\pi^2 + 1) \\
+= Z \approx 7.60774
+\end{aligned}
+$$
+
+So we have $N(5)$ ~ `Poisson`$(Z)$, where $Z$ $\approx$ 7.60774
+
+```{r}
+Z <- -(2*(-20*sqrt(5) * pi^2 + 3*pi*exp(-5) - 5*sqrt(5) - 3*pi))/(3*(4*pi^2 + 1))
+print(Z)
+
+```
+
+
+#### 2. Solution:
+
+We have $f(t)$ = $\lambda(t)\over Z$, but $f(t)$ is difficult to sample from, and then we use the rejection sampling to generate sample from $f(t)$ using $U(0,t)$ as the instrumental distribution. First, set $t$ = 5, calculate $M$ that satisfied $\lambda(x)$ $<$ $M*$ $1\over (t-0)$ 
+
+```{r}
+t <- 5
+Z <- -(-8 * t^(3/2) * pi^2 + 6 * pi * exp(-t) * cos(2 * pi * t) 
+       -2 * t^(3/2) + 3 * exp(-t) * sin(2 * pi * t) - 6 * pi) / (3*(4*pi^2 + 1))
+x <- seq(0, t, 0.001)
+lambda <- function(x) {
+  result <- sqrt(x) + exp(-x) * sin(2 * pi * x)
+}
+
+M <- max(lambda(x) * (t - 0))
+```
+
+Rejection sampling:  
+
+```{r}
+reject_sample <- function(n, t1) {
+  ndone <- 0
+  result <- rep(NA, n)
+  while (TRUE) {
+    cand <- runif(n, min = 0, max = t1)
+    ratio <- lambda(cand) / M * dunif(cand, min = 0, max = t1)
+    u <- runif(n)
+    accept <- u < ratio
+    naccept <- min(n - ndone, sum(accept))
+    if (naccept > 0) {
+      result[(ndone + 1) : (ndone + naccept)] <- cand[accept][1 : naccept]
+      ndone <- ndone + naccept
+      }
+    if (ndone == n) break
+  }
+  return(sort(result))
+}
+```
+
+Next, we can test our code. Sample n from `Poisson`$(Z)$ and generate a sample. $n$ is the number of events by time $t$, and the following results are event points:
+
+```{r}
+n <- rpois(1, Z)
+print(n)
+
+```
+
+```{r}
+reject_sample(n, t1 = t)
+```
+
+
+#### 3.Solution:
+
+Write a function to repeat 1000 simulations, use the function `reject_sample` to get the event points and store the output into result.
+
+```{r}
+run_approx <- function(iter, Z1, t1) {
+  result <- NA
+  n <- rpois(iter, Z1)
+  for (i in 1:iter) {
+    temp <- reject_sample(n[i], t1)
+    result <- append(result, c(temp))
+  }
+  return(result[-1])
+}
+result <- run_approx(1000, Z1 = Z, t1 = t)
+plot(x, lambda(x) / Z, type = 'l', col = 'red', 
+     xlab = 'Event points',ylab = 'Density')
+hist(result, add = TRUE, prob = TRUE)
+```
+
+Run more simulations to get a better approximation.
+
+```{r}
+result1 <- run_approx(5000, Z1 = Z, t1 = t)
+plot(x, lambda(x) / Z, type = 'l', col = 'red', xlab = 'Event points',ylab = 'Density')
+hist(result1, 30, add = TRUE, prob = TRUE)
+```
